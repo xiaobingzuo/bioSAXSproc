@@ -1,0 +1,98 @@
+function result = autoRgMat(dataNameFull, atsasPath, savefig)
+%UNTITLED2 Summary of this function goes here
+%   Detailed explanation goes here
+
+result.Rg   = -1;
+result.RgErr= -1;
+result.Io   = -1;
+result.IoErr= -1;
+result.firstPts = -1;
+result.endPts = -1;
+result.Qfit = -1;
+result.aggr = -1;
+
+tmpLog = 'tmp.txt';
+if nargin ==1
+    atsasPath = 'C:\ATSAS\bin';
+    savefig = 1;
+elseif nargin ==2
+    savefig = 1;
+end
+
+if isempty(atsasPath)
+    atsasPath = 'C:\ATSAS\bin';
+end
+
+Rgcmd= sprintf('%s "%s" -f ssv > "%s"', fullfile(atsasPath, 'autorg'), dataNameFull, tmpLog); 
+dos(Rgcmd);
+fid=fopen(tmpLog,'r');
+line = fgetl(fid);
+fclose(fid);
+str=strsplit(line, ' ');
+
+result.Rg   =str2num(str{1});
+result.RgErr=str2num(str{2});
+result.Io   =str2num(str{3});
+result.IoErr=str2num(str{4});
+result.firstPts = str2num(str{5});
+result.endPts = str2num(str{6});
+result.Qfit = str2num(str{7});
+result.aggr = str2num(str{8});
+
+result.dataName = dataNameFull;
+[fpath,dataNameShort, ext] = fileparts(dataNameFull);
+
+% 
+% bioSAXSData.Rg   =str2num(str{1});
+% bioSAXSData.RgErr=str2num(str{2});
+% bioSAXSData.Io   =str2num(str{3});
+% bioSAXSData.IoErr=str2num(str{4});
+% bioSAXSData.firstPts = str2num(str{5});
+% bioSAXSData.endPts = str2num(str{6});
+% bioSAXSData.Qfit = str2num(str{7});
+% 
+% set(handles.Rg, 'String', num2str(bioSAXSData.Rg, '%5.2f'));
+% set(handles.Io, 'String', num2str(bioSAXSData.Io, '%0.3e'));
+% set(handles.firstPts, 'String', num2str(bioSAXSData.firstPts));
+% set(handles.endPts, 'String', num2str(bioSAXSData.endPts));
+% 
+% set(handles.msg, 'String', sprintf('Fit Quality: %5.1f%%.', bioSAXSData.Qfit*100));
+
+pts1 = result.firstPts;
+pts2 = result.endPts;
+dat = readData(dataNameFull);
+% dat = bioSAXSData.mZeroConc;
+% if isempty(dat)
+%     dat = readData(dataNameFull);
+% end
+q = dat(:,1);
+iq = dat(:,2);
+iqErr = dat(:,3);
+
+q2 = q(pts1:pts2).^2;
+iqfit = result.Io * exp(-1*(result.Rg)^2*q2/3.);
+
+RgQm=q(pts2) * result.Rg;
+pts3 = max(floor(pts1*0.9),1);
+pts4 = min(ceil(pts2*1.05),length(q));
+q3 = q(pts3:pts4).^2;
+figure(1004); 
+h = errorbar(q3,iq(pts3:pts4),iqErr(pts3:pts4),'or');
+set(get(h,'Parent'), 'YScale', 'log'); hold on;
+semilogy(q2,iqfit,'-b', 'LineWidth',2); hold on;
+ylabel('I(Q)'); xlabel('Q^2, A^-^2');
+legend('iExp','iFit'); title([strrep(dataNameShort, '_','\_') ' Guinier fitting']);
+%strlab=sprintf('Rg:%5.2f +/- %4.2f\nIo:%0.3E +/- %0.1E\nRg*Qmax:%3.2f, Qfit=%3d%%', result.Rg, result.RgErr, result.Io, result.IoErr,RgQm, round(result.Qfit*100))
+strlab=sprintf('Rg:%5.2f +/- %4.2f\nIo:%0.3E +/- %0.1E\nRg*Qmax:%3.2f\nQfit: %3.2f', result.Rg, result.RgErr, result.Io, result.IoErr,RgQm, result.Qfit);
+TeXString=texlabel(strlab);
+xL=xlim;
+yL=ylim;
+%text(0.99*xL(2),0.99*yL(2),str,'HorizontalAlignment','right','VerticalAlignment','top')
+%text(median(q2)*1.30,median(iqfit)*1.10,TeXString); 
+text(0.10*xL(2),(exp(0.3*log(yL(2)) + 0.7*log(yL(1)))),TeXString);  % put text string at (10%X, 40%y) position
+hold off;
+
+if savefig
+    saveas(gcf, fullfile(fpath, [dataNameShort '_Rg.jpg']));
+end
+end

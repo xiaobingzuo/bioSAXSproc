@@ -1,0 +1,69 @@
+function rst = calDatRg(datFull)
+%function rst = calDatRg(datFull)
+%   datFull: data file name
+
+tmpLog = 'tmp.log';
+rst={};
+if ispc
+    Rgcmd= sprintf('C:\\ATSAS\\bin\\autorg "%s" -f ssv > "%s"', datFull, tmpLog); 
+    Rgcmd;
+    dos(Rgcmd);
+elseif isunix
+    pfile = mfilename('fullpath');
+    [pdir, ~,~] = fileparts(pfile);
+    Rgcmd= sprintf('%s/atsas/unix/autorg2 "%s" -f ssv > "%s"', pdir, datFull, tmpLog); 
+    unix(Rgcmd);  
+end
+fid=fopen(tmpLog,'r');
+line = fgetl(fid);
+fclose(fid);
+if length(line)<2
+    fprintf("difficulty in processing data %s\n", datFull);
+    %continue;
+else
+    str=strsplit(line, ' ');
+    rst.Rg   =str2num(str{1});
+    rst.RgErr=str2num(str{2});
+    rst.Io   =str2num(str{3});
+    rst.IoErr=str2num(str{4});
+    rst.firstPts = str2num(str{5});
+    rst.endPts = str2num(str{6});
+    rst.Qfit = str2num(str{7});
+    
+    % set(handles.Rg, 'String', num2str(bioSAXSData.Rg, '%5.2f'));
+    % set(handles.Io, 'String', num2str(bioSAXSData.Io, '%0.3e'));
+    % set(handles.firstPts, 'String', num2str(bioSAXSData.firstPts));
+    % set(handles.endPts, 'String', num2str(bioSAXSData.endPts));
+    
+    % set(handles.msg, 'String', sprintf('Fit Quality: %5.1f%%.', bioSAXSData.Qfit*100));
+    
+    pts1 = rst.firstPts;
+    pts2 = rst.endPts;
+    dat = readData(datFull);
+    % if isempty(dat)
+    %     dat = readData(datFull);
+    % end
+    q = dat(:,1);
+    iq = dat(:,2);
+    iqErr = dat(:,3);
+    
+    q2 = q(pts1:pts2).^2;
+    iqfit = rst.Io * exp(-1*(rst.Rg)^2*q2/3.);
+    
+    RgQm=q(pts2) * rst.Rg;
+    pts3 = max(floor(pts1*0.9),1);
+    pts4 = min(ceil(pts2*1.05),length(q));
+    q3 = q(pts3:pts4).^2;
+    figure(906); 
+    h = errorbar(q3,iq(pts3:pts4),iqErr(pts3:pts4),'or');
+    set(get(h,'Parent'), 'YScale', 'log'); hold on;
+    semilogy(q2,iqfit,'-b', 'LineWidth',3); hold on;
+    ylabel('Iq'); xlabel('q^2, A^-2');
+    legend('iExp','iFit'); title('Guinier fitting');
+    strlab=sprintf('Rg:%5.2f +/- %4.2f\nIo:%0.3E +/- %0.1E\nRg*qmax:%3.2f', rst.Rg, rst.RgErr, rst.Io, rst.IoErr,RgQm);
+    TeXString=texlabel(strlab);
+    text(median(q2)*1.2,median(iqfit)*1.2,TeXString); 
+    hold off;
+end
+end
+
